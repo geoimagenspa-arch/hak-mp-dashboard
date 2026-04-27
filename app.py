@@ -20,6 +20,31 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+def check_password():
+    """Gate simple por contraseña usando st.secrets."""
+    def password_entered():
+        if st.session_state["password"] == st.secrets.get("password", "hak2026"):
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]
+        else:
+            st.session_state["password_correct"] = False
+
+    if "password_correct" not in st.session_state:
+        st.markdown("# 🎓 HAK · Inteligencia de Mercado")
+        st.markdown("### 🔐 Acceso restringido")
+        st.text_input("Contraseña", type="password", on_change=password_entered, key="password")
+        st.caption("Solicita la contraseña al equipo HAK.")
+        st.stop()
+    elif not st.session_state["password_correct"]:
+        st.markdown("# 🎓 HAK · Inteligencia de Mercado")
+        st.text_input("Contraseña", type="password", on_change=password_entered, key="password")
+        st.error("❌ Contraseña incorrecta")
+        st.stop()
+
+
+check_password()
+
+
 st.markdown("""
 <style>
 [data-testid="stMetric"] {
@@ -223,7 +248,8 @@ with tabs[3]:
         # comp tiene "organismos_top" (texto separado por · )
         rows = []
         for _, opp in op.iterrows():
-            org_target = (opp.get("organismo") or "").strip()
+            org_raw = opp.get("organismo")
+            org_target = str(org_raw).strip() if pd.notna(org_raw) else ""
             if not org_target:
                 continue
             # Buscar competidores que han ganado en este organismo
