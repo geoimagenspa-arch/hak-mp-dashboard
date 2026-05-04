@@ -3,12 +3,137 @@
 Versión deployada en Streamlit Community Cloud.
 Lee CSVs versionados en data/ que se actualizan vía git push desde el scanner local.
 """
+import base64
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
+import requests
 import streamlit as st
+
+
+REPO_OWNER = "geoimagenspa-arch"
+REPO_NAME = "hak-mp-dashboard"
+REVISIONES_PATH = "data/revisiones.json"
+REVISORES = ["Nicolás", "Claudia Vivallo", "Camila Garay", "José Parra", "Claudia Rosales"]
+ESTADOS = {
+    "sirve": ("✅ Sirve", "#16a34a"),
+    "no_sirve": ("❌ No sirve", "#dc2626"),
+    "en_proceso": ("⏳ En proceso", "#d97706"),
+}
+
+
+@st.cache_data(ttl=60)
+def cargar_revisiones() -> dict:
+    """Carga revisiones desde el repo público (raw GitHub)."""
+    url = f"https://raw.githubusercontent.com/{REPO_OWNER}/{REPO_NAME}/main/{REVISIONES_PATH}"
+    try:
+        r = requests.get(url, timeout=5)
+        if r.ok:
+            return r.json()
+    except Exception:
+        pass
+    return {}
+
+
+def guardar_revision(codigo: str, estado: str, comentario: str, revisor: str) -> bool:
+    """Guarda una revisión en data/revisiones.json del repo (vía GitHub Contents API)."""
+    token = st.secrets.get("github_token", None)
+    if not token:
+        st.error("⚠️ Falta `github_token` en Streamlit Secrets. Pide a Nicolás configurarlo.")
+        return False
+
+    api = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{REVISIONES_PATH}"
+    headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github+json"}
+
+    # 1) Get current SHA + content
+    sha = None
+    current = {}
+    try:
+        r = requests.get(api, headers=headers, timeout=8)
+        if r.ok:
+            data = r.json()
+            sha = data.get("sha")
+            decoded = base64.b64decode(data["content"]).decode("utf-8")
+            current = json.loads(decoded) if decoded.strip() else {}
+    except Exception as e:
+        st.warning(f"No se pudo leer revisiones existentes: {e}")
+
+    # 2) Update record
+    current[codigo] = {
+        "estado": estado,
+        "comentario": comentario or "",
+        "revisor": revisor,
+        "fecha": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
+
+    # 3) PUT new content
+    new_b64 = base64.b64encode(
+        json.dumps(current, ensure_ascii=False, indent=2).encode("utf-8")
+    ).decode("ascii")
+    payload = {
+        "message": f"rev: {codigo} → {estado} by {revisor}",
+        "content": new_b64,
+    }
+    if sha:
+        payload["sha"] = sha
+    try:
+        r = requests.put(api, headers=headers, json=payload, timeout=15)
+        if r.ok:
+            st.cache_data.clear()
+            return True
+        st.error(f"Error guardando ({r.status_code}): {r.text[:200]}")
+    except Exception as e:
+        st.error(f"Excepción guardando: {e}")
+    return False
+
+
+def fmt_fecha(s: str) -> str:
+    """Formatea ISO datetime a 'DD/MM/YYYY HH:MM'."""
+    if not s or pd.isna(s):
+        return "—"
+    try:
+        dt = datetime.fromisoformat(str(s).replace("Z", "").split(".")[0])
+        return dt.strftime("%d/%m/%Y %H:%M")
+    except Exception:
+        return str(s)[:10]
+
+
+def render_revision_widget(codigo: str, revisiones: dict, key_prefix: str):
+    """Render compacto del widget de revisión bajo cada licitación."""
+    rev = revisiones.get(codigo, {})
+    if rev:
+        nom, color = ESTADOS.get(rev["estado"], ("?", "#6b7280"))
+        st.markdown(
+            f"<div style='background:{color}20; padding:8px; border-radius:6px; "
+            f"border-left:4px solid {color}; margin:4px 0;'>"
+            f"<b style='color:{color}'>{nom}</b> · "
+            f"por <b>{rev.get('revisor','?')}</b> · "
+            f"{fmt_fecha(rev.get('fecha'))}<br>"
+            f"<small>💬 {rev.get('comentario') or '(sin comentario)'}</small>"
+            "</div>", unsafe_allow_html=True,
+        )
+
+    with st.expander("✏️ Marcar / Actualizar revisión", expanded=False):
+        revisor = st.selectbox("Revisor", REVISORES,
+                                key=f"{key_prefix}_rev_{codigo}",
+                                index=0)
+        comentario = st.text_area("Comentario (opcional)",
+                                   value=rev.get("comentario", ""),
+                                   key=f"{key_prefix}_com_{codigo}",
+                                   height=68)
+        c1, c2, c3 = st.columns(3)
+        if c1.button("✅ Sirve", key=f"{key_prefix}_si_{codigo}", use_container_width=True):
+            if guardar_revision(codigo, "sirve", comentario, revisor):
+                st.success("Guardado"); st.rerun()
+        if c2.button("⏳ En proceso", key=f"{key_prefix}_pr_{codigo}", use_container_width=True):
+            if guardar_revision(codigo, "en_proceso", comentario, revisor):
+                st.success("Guardado"); st.rerun()
+        if c3.button("❌ No sirve", key=f"{key_prefix}_no_{codigo}", use_container_width=True):
+            if guardar_revision(codigo, "no_sirve", comentario, revisor):
+                st.success("Guardado"); st.rerun()
 
 ROOT = Path(__file__).parent
 DATA = ROOT / "data"
@@ -102,6 +227,16 @@ with st.sidebar:
     else:
         region_sel, prio_sel, urg_sel, score_min, monto_min_M = [], [], [], 0, 0
 
+    st.divider()
+    st.subheader("Revisiones")
+    estados_filtro = st.multiselect(
+        "Mostrar revisión", ["No revisadas", "✅ Sirve", "⏳ En proceso", "❌ No sirve"],
+        default=["No revisadas", "✅ Sirve", "⏳ En proceso"]
+    )
+
+# Cargar revisiones desde GitHub (cache 60s)
+revisiones = cargar_revisiones()
+
 # ─── Header ──────────────────────────────────────────────────────────────────
 st.title("🎓 Inteligencia de Mercado · Fundación HAK")
 if op.empty and comp.empty and fondos.empty:
@@ -120,6 +255,17 @@ if not op.empty:
     op_f = op_f[op_f["score"].fillna(0) >= score_min]
     if monto_min_M > 0:
         op_f = op_f[op_f["monto"].fillna(0) >= monto_min_M * 1_000_000]
+
+    # Filtro por estado de revisión
+    def _estado_filt(codigo):
+        rev = revisiones.get(str(codigo), {})
+        e = rev.get("estado")
+        if not e:
+            return "No revisadas"
+        return {"sirve": "✅ Sirve", "en_proceso": "⏳ En proceso",
+                "no_sirve": "❌ No sirve"}.get(e, "No revisadas")
+    if estados_filtro:
+        op_f = op_f[op_f["codigo"].apply(_estado_filt).isin(estados_filtro)]
 
 # ─── Métricas ────────────────────────────────────────────────────────────────
 c1, c2, c3, c4, c5, c6 = st.columns(6)
@@ -154,27 +300,60 @@ with tabs[0]:
     if op_f.empty:
         st.info("Sin oportunidades con los filtros actuales.")
     else:
+        # Inyectar columna estado_revision para visualizar
+        def _est_emoji(c):
+            r = revisiones.get(str(c), {})
+            return {"sirve": "✅", "en_proceso": "⏳", "no_sirve": "❌"}.get(r.get("estado"), "")
+        op_view = op_f.copy()
+        op_view["✓"] = op_view["codigo"].apply(_est_emoji)
+
+        cols = ["✓", "score", "priority", "urgencia",
+                "fecha_publicacion", "fecha_cierre",
+                "organismo", "region", "nombre", "monto",
+                "cliente_previo", "organismo_prioritario",
+                "matched_high", "codigo", "url"]
+        cols = [c for c in cols if c in op_view.columns]
+
         st.dataframe(
-            op_f[["score", "priority", "urgencia", "horas_restantes",
-                   "organismo", "region", "nombre", "monto",
-                   "cliente_previo", "organismo_prioritario", "oportunidad_estructural",
-                   "matched_high", "codigo", "url"]],
-            use_container_width=True, height=600,
+            op_view[cols],
+            use_container_width=True, height=420,
             column_config={
-                "score": st.column_config.NumberColumn("Score"),
-                "priority": "Prio", "urgencia": "Urg",
-                "horas_restantes": st.column_config.NumberColumn("Hrs"),
+                "✓": st.column_config.TextColumn("✓", width="small"),
+                "score": st.column_config.NumberColumn("Score", width="small"),
+                "priority": st.column_config.TextColumn("Prio", width="small"),
+                "urgencia": st.column_config.TextColumn("Urg", width="small"),
+                "fecha_publicacion": st.column_config.DatetimeColumn(
+                    "Publicada", format="DD/MM/YYYY"),
+                "fecha_cierre": st.column_config.DatetimeColumn(
+                    "Cierra", format="DD/MM/YYYY HH:mm"),
                 "organismo": "Organismo", "region": "Región",
                 "nombre": "Licitación",
                 "monto": st.column_config.NumberColumn("Monto CLP", format="$%d"),
-                "cliente_previo": st.column_config.CheckboxColumn("🏆"),
-                "organismo_prioritario": st.column_config.CheckboxColumn("🎯"),
-                "oportunidad_estructural": "⚡ Estructural",
+                "cliente_previo": st.column_config.CheckboxColumn("🏆", width="small"),
+                "organismo_prioritario": st.column_config.CheckboxColumn("🎯", width="small"),
                 "matched_high": "Keywords",
-                "codigo": "Código",
-                "url": st.column_config.LinkColumn("🔗"),
+                "codigo": st.column_config.TextColumn("Código", width="small"),
+                "url": st.column_config.LinkColumn("🔗 MP", width="small",
+                                                    display_text="Buscar"),
             }
         )
+
+        st.divider()
+        st.markdown("### ✏️ Revisar una oportunidad")
+        st.caption("Selecciona un código para marcar la revisión. "
+                   "El código copialo en el buscador de Mercado Público "
+                   "(usa el link 🔗 MP de la fila).")
+        codigo_sel = st.selectbox(
+            "Código",
+            options=op_f["codigo"].tolist(),
+            format_func=lambda c: f"{c} — {op_f[op_f['codigo']==c]['nombre'].iloc[0][:80]}",
+        )
+        if codigo_sel:
+            row = op_f[op_f["codigo"] == codigo_sel].iloc[0]
+            st.markdown(f"**🏛 {row['organismo']}** · 📍 {row.get('region','—')} · "
+                        f"💰 ${(row.get('monto') or 0)/1e6:,.1f}M CLP")
+            st.code(codigo_sel, language=None)  # con botón copy nativo
+            render_revision_widget(str(codigo_sel), revisiones, key_prefix="t1")
 
 
 # ─── TAB 2: TOP del día ──────────────────────────────────────────────────────
@@ -183,10 +362,15 @@ with tabs[1]:
         st.info("Sin oportunidades para el TOP.")
     else:
         for _, r in op_f.head(10).iterrows():
+            codigo = str(r.get("codigo", ""))
+            rev = revisiones.get(codigo, {})
             with st.container(border=True):
                 col_a, col_b = st.columns([4, 1])
                 with col_a:
                     badges = []
+                    if rev:
+                        nom, _ = ESTADOS.get(rev["estado"], ("?", "#6b7280"))
+                        badges.append(nom)
                     if r.get("cliente_previo"):
                         badges.append("🏆 CLIENTE PREVIO")
                     if r.get("organismo_prioritario"):
@@ -195,6 +379,8 @@ with tabs[1]:
                         badges.append(f"⚡ {r['oportunidad_estructural'][:30]}")
                     badge_str = " · ".join(badges)
                     st.markdown(f"### {r['nombre']}")
+                    st.caption(f"📅 Publicada: **{fmt_fecha(r.get('fecha_publicacion'))}** · "
+                               f"Cierra: **{fmt_fecha(r.get('fecha_cierre'))}**")
                     st.caption(f"🏛 **{r.get('organismo','—')}** · "
                                f"📍 {r.get('region','—')} · "
                                f"💰 ${(r.get('monto') or 0)/1e6:.1f}M CLP")
@@ -203,10 +389,14 @@ with tabs[1]:
                     if pd.notna(r.get("matched_high")) and r.get("matched_high"):
                         st.caption(f"🔑 {r['matched_high']}")
                     if pd.notna(r.get("url")) and r.get("url"):
-                        st.markdown(f"[🔗 Ver en Mercado Público]({r['url']})")
+                        st.markdown(f"🔗 [Buscar en Mercado Público]({r['url']}) · "
+                                    f"copia el código:")
+                        st.code(codigo, language=None)
                 with col_b:
                     st.metric("Score", int(r.get("score", 0)))
                     st.caption(f"{r.get('urgencia','')}")
+                # Widget de revisión
+                render_revision_widget(codigo, revisiones, key_prefix="t2")
 
 
 # ─── TAB 3: Competencia 365d ─────────────────────────────────────────────────
