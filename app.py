@@ -200,6 +200,13 @@ def load_data():
 
 op, comp, fondos, meta = load_data()
 
+# Filtrar licitaciones ya cerradas (fecha_cierre < ahora) en el dashboard también
+if not op.empty and "fecha_cierre" in op.columns:
+    _now = pd.Timestamp.now()
+    _fc = pd.to_datetime(op["fecha_cierre"], errors="coerce")
+    # Mantener: sin fecha (no se puede saber) O fecha futura
+    op = op[_fc.isna() | (_fc >= _now)].reset_index(drop=True)
+
 # ─── Sidebar ─────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("# 🎓 HAK")
