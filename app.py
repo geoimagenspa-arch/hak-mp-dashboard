@@ -314,27 +314,40 @@ with tabs[0]:
                 "matched_high", "codigo", "url"]
         cols = [c for c in cols if c in op_view.columns]
 
+        st.caption("📌 **Cómo abrir una licitación**: Click en `🔗 MP` (abre Mercado Público), "
+                   "luego copia el código (más abajo, botón 📋) y pégalo en el buscador del sitio. "
+                   "Mercado Público no permite link directo a fichas para usuarios no autenticados.")
+
         st.dataframe(
             op_view[cols],
             use_container_width=True, height=420,
             column_config={
-                "✓": st.column_config.TextColumn("✓", width="small"),
-                "score": st.column_config.NumberColumn("Score", width="small"),
-                "priority": st.column_config.TextColumn("Prio", width="small"),
-                "urgencia": st.column_config.TextColumn("Urg", width="small"),
+                "✓": st.column_config.TextColumn(
+                    "✓", width="small",
+                    help="Estado de revisión: ✅ Sirve · ⏳ En proceso · ❌ No sirve · vacío = no revisada"),
+                "score": st.column_config.NumberColumn("Score", width="small",
+                    help="Puntaje de relevancia HAK (suma de keywords + bonuses)"),
+                "priority": st.column_config.TextColumn("Prio", width="small",
+                    help="ALTA si matchea ≥1 keyword de alta prioridad"),
+                "urgencia": st.column_config.TextColumn("Urg", width="small",
+                    help="CRITICA <24h · URGENTE <48h · PRONTA <7d · NORMAL"),
                 "fecha_publicacion": st.column_config.DatetimeColumn(
-                    "Publicada", format="DD/MM/YYYY"),
+                    "Publicada", format="DD/MM/YYYY",
+                    help="Fecha en que el organismo publicó la licitación"),
                 "fecha_cierre": st.column_config.DatetimeColumn(
-                    "Cierra", format="DD/MM/YYYY HH:mm"),
+                    "Cierra", format="DD/MM/YYYY HH:mm",
+                    help="Fecha y hora límite para postular"),
                 "organismo": "Organismo", "region": "Región",
                 "nombre": "Licitación",
                 "monto": st.column_config.NumberColumn("Monto CLP", format="$%d"),
-                "cliente_previo": st.column_config.CheckboxColumn("🏆", width="small"),
-                "organismo_prioritario": st.column_config.CheckboxColumn("🎯", width="small"),
+                "cliente_previo": st.column_config.CheckboxColumn("🏆", width="small",
+                    help="HAK ya ganó licitación con este organismo (Temuco, Cerrillos, Cunco, Villarrica)"),
+                "organismo_prioritario": st.column_config.CheckboxColumn("🎯", width="small",
+                    help="Organismo dentro de los 177 priorizados (SLEPs, MINEDUC, JUNJI, GORE, municipios HAK)"),
                 "matched_high": "Keywords",
                 "codigo": st.column_config.TextColumn("Código", width="small"),
                 "url": st.column_config.LinkColumn("🔗 MP", width="small",
-                                                    display_text="Buscar"),
+                                                    display_text="Abrir MP"),
             }
         )
 
