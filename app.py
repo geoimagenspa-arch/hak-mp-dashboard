@@ -83,7 +83,11 @@ def guardar_revision(codigo: str, estado: str, comentario: str, revisor: str) ->
     try:
         r = requests.put(api, headers=headers, json=payload, timeout=15)
         if r.ok:
-            st.cache_data.clear()
+            # Actualizar session_state INMEDIATAMENTE (no espera CDN GitHub)
+            if "revisiones_local" not in st.session_state:
+                st.session_state.revisiones_local = {}
+            st.session_state.revisiones_local[codigo] = current[codigo]
+            cargar_revisiones.clear()  # solo este cache, no todo
             return True
         st.error(f"Error guardando ({r.status_code}): {r.text[:200]}")
     except Exception as e:
@@ -223,7 +227,10 @@ def load_data():
 
 
 op, comp, fondos, meta = load_data()
+# Carga remota (cacheada 15s) + overrides locales de esta sesión (instantáneos)
 revisiones = cargar_revisiones()
+if "revisiones_local" in st.session_state:
+    revisiones = {**revisiones, **st.session_state.revisiones_local}
 
 # Convertir fechas a datetime para que DatetimeColumn las renderice
 if not op.empty:
