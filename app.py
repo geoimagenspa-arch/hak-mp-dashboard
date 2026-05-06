@@ -26,7 +26,7 @@ ESTADOS = {
 }
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=15)
 def cargar_revisiones() -> dict:
     """Carga revisiones desde el repo público (raw GitHub)."""
     url = f"https://raw.githubusercontent.com/{REPO_OWNER}/{REPO_NAME}/main/{REVISIONES_PATH}"
@@ -223,7 +223,7 @@ def load_data():
 
 
 op, comp, fondos, meta = load_data()
-revisiones = cargar_revisiones() if False else {}  # placeholder, real load más abajo
+revisiones = cargar_revisiones()
 
 # Convertir fechas a datetime para que DatetimeColumn las renderice
 if not op.empty:
@@ -258,10 +258,6 @@ if not op.empty and "organismo" in op.columns:
 # 2) Recomputar urgencia con la fecha_cierre real
 if not op.empty and "fecha_cierre" in op.columns:
     op["urgencia"] = op["fecha_cierre"].apply(recalc_urgencia)
-
-# 3) Cargar revisiones para usar en filtros
-revisiones = cargar_revisiones()
-
 
 def _estado_codigo(c):
     return revisiones.get(str(c), {}).get("estado", "")
@@ -312,9 +308,6 @@ with st.sidebar:
     )
     st.caption("ℹ️ Las marcadas como ❌ No sirve se ocultan automáticamente. "
                "Las 📨 Postuladas siguen visibles aunque la licitación cierre.")
-
-# Cargar revisiones desde GitHub (cache 60s)
-revisiones = cargar_revisiones()
 
 # ─── Header ──────────────────────────────────────────────────────────────────
 st.title("🎓 Inteligencia de Mercado · Fundación HAK")
@@ -486,13 +479,26 @@ Las licitaciones cerradas se ocultan automáticamente, salvo las marcadas como *
 
         st.divider()
         st.markdown("### ✏️ Revisar una oportunidad")
-        st.caption("Selecciona un código para marcar la revisión. "
-                   "El código copialo en el buscador de Mercado Público "
-                   "(usa el link 🔗 MP de la fila).")
+        st.caption("Selecciona usando el **N° de fila** que ves en la tabla de arriba "
+                   "(la primera columna numerada). Click 🔗 MP de cada fila para abrir su ficha.")
+
+        # Construir mapping: row_idx → codigo, ordenado igual que la tabla mostrada
+        op_f_indexed = op_f.reset_index(drop=True)
+        opciones = list(op_f_indexed["codigo"])
+
+        def _format_opt(c):
+            row = op_f_indexed[op_f_indexed["codigo"] == c].iloc[0]
+            idx = op_f_indexed.index[op_f_indexed["codigo"] == c].tolist()[0]
+            estado_emoji = {"sirve":"✅","en_proceso":"⏳","postulada":"📨","no_sirve":"❌"}.get(
+                revisiones.get(str(c), {}).get("estado", ""), "")
+            score = int(row.get("score", 0))
+            nombre = (row.get("nombre") or "")[:70]
+            return f"#{idx} · [{score}pts] {estado_emoji} {c} — {nombre}"
+
         codigo_sel = st.selectbox(
-            "Código",
-            options=op_f["codigo"].tolist(),
-            format_func=lambda c: f"{c} — {op_f[op_f['codigo']==c]['nombre'].iloc[0][:80]}",
+            "Buscar por N° fila o código",
+            options=opciones,
+            format_func=_format_opt,
         )
         if codigo_sel:
             row = op_f[op_f["codigo"] == codigo_sel].iloc[0]
