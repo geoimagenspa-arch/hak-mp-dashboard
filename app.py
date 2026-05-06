@@ -17,11 +17,12 @@ import streamlit as st
 REPO_OWNER = "geoimagenspa-arch"
 REPO_NAME = "hak-mp-dashboard"
 REVISIONES_PATH = "data/revisiones.json"
-REVISORES = ["Nicolás", "Claudia Vivallo", "Camila Garay", "José Parra", "Claudia Rosales"]
+REVISORES = ["Claudia Vivallo", "Camila Garay", "Paola Rocha"]
 ESTADOS = {
     "sirve": ("✅ Sirve", "#16a34a"),
     "no_sirve": ("❌ No sirve", "#dc2626"),
     "en_proceso": ("⏳ En proceso", "#d97706"),
+    "postulada": ("📨 Postulada", "#2563eb"),
 }
 
 
@@ -124,16 +125,19 @@ def render_revision_widget(codigo: str, revisiones: dict, key_prefix: str):
                                    value=rev.get("comentario", ""),
                                    key=f"{key_prefix}_com_{codigo}",
                                    height=68)
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
         if c1.button("✅ Sirve", key=f"{key_prefix}_si_{codigo}", use_container_width=True):
             if guardar_revision(codigo, "sirve", comentario, revisor):
                 st.success("Guardado"); st.rerun()
         if c2.button("⏳ En proceso", key=f"{key_prefix}_pr_{codigo}", use_container_width=True):
             if guardar_revision(codigo, "en_proceso", comentario, revisor):
                 st.success("Guardado"); st.rerun()
-        if c3.button("❌ No sirve", key=f"{key_prefix}_no_{codigo}", use_container_width=True):
-            if guardar_revision(codigo, "no_sirve", comentario, revisor):
+        if c3.button("📨 Postulada", key=f"{key_prefix}_po_{codigo}", use_container_width=True):
+            if guardar_revision(codigo, "postulada", comentario, revisor):
                 st.success("Guardado"); st.rerun()
+        if c4.button("❌ No sirve", key=f"{key_prefix}_no_{codigo}", use_container_width=True):
+            if guardar_revision(codigo, "no_sirve", comentario, revisor):
+                st.success("Guardado · ahora oculta"); st.rerun()
 
 ROOT = Path(__file__).parent
 DATA = ROOT / "data"
@@ -199,13 +203,51 @@ def load_data():
 
 
 op, comp, fondos, meta = load_data()
+revisiones = cargar_revisiones() if False else {}  # placeholder, real load más abajo
 
-# Filtrar licitaciones ya cerradas (fecha_cierre < ahora) en el dashboard también
+
+def recalc_urgencia(fc):
+    """Recalcula urgencia desde fecha_cierre + ahora."""
+    if pd.isna(fc):
+        return "NORMAL"
+    try:
+        cierre = pd.to_datetime(fc, errors="coerce")
+        if pd.isna(cierre):
+            return "NORMAL"
+        delta_h = (cierre - pd.Timestamp.now()).total_seconds() / 3600
+        if delta_h < 0: return "CERRADA"
+        if delta_h < 24: return "CRITICA"
+        if delta_h < 48: return "URGENTE"
+        if delta_h < 168: return "PRONTA"
+        return "NORMAL"
+    except Exception:
+        return "NORMAL"
+
+
+# 1) Descartar OCs/filas sin organismo (no enriquecidas)
+if not op.empty and "organismo" in op.columns:
+    op = op[op["organismo"].fillna("").str.strip() != ""].reset_index(drop=True)
+
+# 2) Recomputar urgencia con la fecha_cierre real
 if not op.empty and "fecha_cierre" in op.columns:
-    _now = pd.Timestamp.now()
-    _fc = pd.to_datetime(op["fecha_cierre"], errors="coerce")
-    # Mantener: sin fecha (no se puede saber) O fecha futura
-    op = op[_fc.isna() | (_fc >= _now)].reset_index(drop=True)
+    op["urgencia"] = op["fecha_cierre"].apply(recalc_urgencia)
+
+# 3) Cargar revisiones para usar en filtros
+revisiones = cargar_revisiones()
+
+
+def _estado_codigo(c):
+    return revisiones.get(str(c), {}).get("estado", "")
+
+
+# 4) Ocultar SIEMPRE: marcadas como no_sirve, y cerradas EXCEPTO Postuladas
+if not op.empty:
+    estados_op = op["codigo"].apply(_estado_codigo)
+    # Quitar no_sirve
+    op = op[estados_op != "no_sirve"].reset_index(drop=True)
+    # Quitar cerradas SALVO postuladas (para seguimiento)
+    estados_op = op["codigo"].apply(_estado_codigo)  # recalc tras filtro
+    op = op[(op["urgencia"] != "CERRADA") | (estados_op == "postulada")].reset_index(drop=True)
 
 # ─── Sidebar ─────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -237,9 +279,12 @@ with st.sidebar:
     st.divider()
     st.subheader("Revisiones")
     estados_filtro = st.multiselect(
-        "Mostrar revisión", ["No revisadas", "✅ Sirve", "⏳ En proceso", "❌ No sirve"],
-        default=["No revisadas", "✅ Sirve", "⏳ En proceso"]
+        "Mostrar revisión",
+        ["No revisadas", "✅ Sirve", "⏳ En proceso", "📨 Postulada"],
+        default=["No revisadas", "✅ Sirve", "⏳ En proceso", "📨 Postulada"]
     )
+    st.caption("ℹ️ Las marcadas como ❌ No sirve se ocultan automáticamente. "
+               "Las 📨 Postuladas siguen visibles aunque la licitación cierre.")
 
 # Cargar revisiones desde GitHub (cache 60s)
 revisiones = cargar_revisiones()
@@ -270,6 +315,7 @@ if not op.empty:
         if not e:
             return "No revisadas"
         return {"sirve": "✅ Sirve", "en_proceso": "⏳ En proceso",
+                "postulada": "📨 Postulada",
                 "no_sirve": "❌ No sirve"}.get(e, "No revisadas")
     if estados_filtro:
         op_f = op_f[op_f["codigo"].apply(_estado_filt).isin(estados_filtro)]
@@ -310,34 +356,47 @@ with tabs[0]:
         # Inyectar columna estado_revision para visualizar
         def _est_emoji(c):
             r = revisiones.get(str(c), {})
-            return {"sirve": "✅", "en_proceso": "⏳", "no_sirve": "❌"}.get(r.get("estado"), "")
+            return {"sirve": "✅", "en_proceso": "⏳", "postulada": "📨",
+                    "no_sirve": "❌"}.get(r.get("estado"), "")
         op_view = op_f.copy()
         op_view["✓"] = op_view["codigo"].apply(_est_emoji)
 
-        cols = ["✓", "score", "priority", "urgencia",
+        # Licitación en posición 3 · sin "urg" visible (color de fila lo reemplaza)
+        cols = ["✓", "score", "nombre", "priority",
                 "fecha_publicacion", "fecha_cierre",
-                "organismo", "region", "nombre", "monto",
+                "organismo", "region", "monto",
                 "cliente_previo", "organismo_prioritario",
                 "matched_high", "codigo", "url"]
         cols = [c for c in cols if c in op_view.columns]
 
-        st.caption("📌 **Cómo abrir una licitación**: Click en `🔗 MP` (abre Mercado Público), "
-                   "luego copia el código (más abajo, botón 📋) y pégalo en el buscador del sitio. "
-                   "Mercado Público no permite link directo a fichas para usuarios no autenticados.")
+        st.caption("🟥 Crítica (<24h) · 🟧 Urgente (<48h) · 🟨 Pronta (<7d) · ⬜ Normal · "
+                   "Click 🔗 MP para abrir la ficha directa.")
+
+        # Color de fila según urgencia
+        URG_COLORS = {"CRITICA": "#fee2e2", "URGENTE": "#ffedd5", "PRONTA": "#fef9c3"}
+        def _row_style(row):
+            color = URG_COLORS.get(str(row.get("urgencia", "")), "")
+            return [f"background-color: {color}" if color else ""] * len(row)
+
+        df_styled = op_view[cols + ["urgencia"]].copy()
+        styled = df_styled.style.apply(_row_style, axis=1)
+        try:
+            styled = styled.hide(["urgencia"], axis="columns")
+        except Exception:
+            pass
 
         st.dataframe(
-            op_view[cols],
+            styled,
             use_container_width=True, height=420,
             column_config={
                 "✓": st.column_config.TextColumn(
                     "✓", width="small",
-                    help="Estado de revisión: ✅ Sirve · ⏳ En proceso · ❌ No sirve · vacío = no revisada"),
+                    help="✅ Sirve · ⏳ En proceso · 📨 Postulada · ❌ No sirve · vacío = no revisada"),
                 "score": st.column_config.NumberColumn("Score", width="small",
                     help="Puntaje de relevancia HAK (suma de keywords + bonuses)"),
+                "nombre": "Licitación",
                 "priority": st.column_config.TextColumn("Prio", width="small",
                     help="ALTA si matchea ≥1 keyword de alta prioridad"),
-                "urgencia": st.column_config.TextColumn("Urg", width="small",
-                    help="CRITICA <24h · URGENTE <48h · PRONTA <7d · NORMAL"),
                 "fecha_publicacion": st.column_config.DatetimeColumn(
                     "Publicada", format="DD/MM/YYYY",
                     help="Fecha en que el organismo publicó la licitación"),
@@ -345,7 +404,6 @@ with tabs[0]:
                     "Cierra", format="DD/MM/YYYY HH:mm",
                     help="Fecha y hora límite para postular"),
                 "organismo": "Organismo", "region": "Región",
-                "nombre": "Licitación",
                 "monto": st.column_config.NumberColumn("Monto CLP", format="$%d"),
                 "cliente_previo": st.column_config.CheckboxColumn("🏆", width="small",
                     help="HAK ya ganó licitación con este organismo (Temuco, Cerrillos, Cunco, Villarrica)"),
