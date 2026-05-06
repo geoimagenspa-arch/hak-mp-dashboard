@@ -345,6 +345,7 @@ tabs = st.tabs([
     "🏛 Organismos",
     "📍 Geografía",
     "💰 Fondos Concursables",
+    "📋 Acciones Pendientes HAK",
 ])
 
 
@@ -811,6 +812,338 @@ with tabs[8]:
                     display_text="Abrir"),
             }
         )
+
+
+# ─── TAB 10: Acciones Pendientes HAK (independientes del sistema) ────────────
+with tabs[9]:
+    st.markdown("# 📋 Acciones Pendientes — HAK")
+    st.markdown("Estas son acciones que el equipo HAK debe ejecutar **fuera del sistema** "
+                "para desbloquear nuevas fuentes de financiamiento, mejorar competitividad "
+                "en licitaciones y profesionalizar la captación.")
+
+    ACCIONES = [
+        # ───────── CRÍTICAS (próximos 30 días) ─────────
+        {
+            "prio": "🔴 CRÍTICA",
+            "titulo": "Inscribirse en registro Ley 21.440",
+            "porque": (
+                "**Sin esto, todas las donaciones privadas con beneficio tributario quedan bloqueadas.** "
+                "La Ley 21.440 (Donaciones Sociales) creó un registro único; las empresas que quieran donar "
+                "a HAK con franquicia tributaria SOLO pueden hacerlo si HAK está inscrita. "
+                "Esto desbloquea: donaciones de empresas (RSE Codelco/CMPC/BHP/etc.), Fundaciones nacionales "
+                "que exigen el registro como prerequisito (Mustakis, Colunga, etc.), Ley Valdés (donaciones culturales)."
+            ),
+            "url": "https://donacionesley21440.gob.cl/registro-publico",
+            "tiempo": "1 día (gestión + documentos)",
+            "responsable": "Camila Garay / Claudia Vivallo",
+        },
+        {
+            "prio": "🔴 CRÍTICA",
+            "titulo": "Postular FFOIP 2026 (SEGEGOB)",
+            "porque": (
+                "Hasta **$10M CLP** anuales para fundaciones con 2+ años de trayectoria. HAK califica. "
+                "Postulación abre marzo-abril; ya hay bases publicadas. Es de las más accesibles para fundaciones "
+                "consolidadas y permite financiar fortalecimiento institucional, formación, proyectos sociales. "
+                "Histórico: aproximadamente 60% tasa de adjudicación para postulantes con experiencia documentada."
+            ),
+            "url": "https://fondodefortalecimiento.gob.cl/bases-del-concurso/",
+            "tiempo": "2-3 días (preparar postulación)",
+            "responsable": "Camila Garay",
+        },
+        {
+            "prio": "🔴 CRÍTICA",
+            "titulo": "LOI a Tinker Foundation",
+            "porque": (
+                "Foco perfecto: **educación primaria temprana 5-10 años, alfabetización y numeración**. "
+                "Chile incluido explícitamente como país elegible. Grants entre **$30M-$100M CLP**. "
+                "Proceso 3 etapas (LOI → propuesta corta → propuesta completa); ventaja: hay tiempo para iterar. "
+                "HAK encaja con escuelas red El Trencito (Temuco) + Rengalil + Sta Cruz Loncoche."
+            ),
+            "url": "https://tinker.org/institutional-grants-apply-page/",
+            "tiempo": "1 semana (preparar LOI en inglés)",
+            "responsable": "Claudia Vivallo + apoyo traducción",
+        },
+        {
+            "prio": "🔴 CRÍTICA",
+            "titulo": "Crear cuenta institucional en GlobalGiving",
+            "porque": (
+                "Plataforma global con acceso a donantes corporativos US (Google, Microsoft, etc. donan "
+                "vía employee match) + crowdfunding internacional. Después de inscripción, HAK puede recibir "
+                "donaciones recurrentes en USD. Requiere documentos en inglés (estatutos, evidencia de impacto, "
+                "estados financieros). **Una vez inscrita, queda como infraestructura permanente.**"
+            ),
+            "url": "https://www.globalgiving.org/dy/v2/pe/application/start.html",
+            "tiempo": "2 semanas (proceso de validación)",
+            "responsable": "Equipo HAK + traducción",
+        },
+        {
+            "prio": "🔴 CRÍTICA",
+            "titulo": "Inscribirse en plataformas chilenas de donaciones",
+            "porque": (
+                "**DonarOnline, Donando.cl, YoDono** — permiten captar donaciones recurrentes desde el sitio web HAK. "
+                "Cobran fee bajo (3-5%) pero entregan toda la infraestructura: pasarela pago, recibo automático, "
+                "reportes a donantes, integración con bancos chilenos. Modelo probado por Fundación Las Rosas, Hogar de Cristo. "
+                "Sumar a la web fundacionhelenadamskeller.com un botón 'DONAR' aumenta captación 5-10% mensualmente."
+            ),
+            "url": "https://donaronline.org/",
+            "tiempo": "1 día por plataforma",
+            "responsable": "Camila Garay + diseño web",
+        },
+
+        # ───────── ALTA (próximos 90 días) ─────────
+        {
+            "prio": "🟠 ALTA",
+            "titulo": "Postular IAF Inter-American Foundation",
+            "porque": (
+                "Aplicación **rolling todo el año** (no espera convocatoria). Grants de **$25M-$380M CLP** para 1-4 años. "
+                "Foco: ONG locales LATAM con foco educación, inclusión social. HAK perfil 100% encaja. "
+                "Ya HAK tiene track record (4 contratos públicos, 16 establecimientos atendidos) — narrativa fuerte."
+            ),
+            "url": "https://iaf.gov/apply-for-grant/",
+            "tiempo": "2-3 semanas (propuesta inglés + métricas impacto)",
+            "responsable": "Claudia Vivallo + traducción",
+        },
+        {
+            "prio": "🟠 ALTA",
+            "titulo": "Contactar Embajada Canadá - CFLI",
+            "porque": (
+                "Canada Fund for Local Initiatives Chile prioriza **pueblos indígenas y educación**. "
+                "Proyecto educación intercultural mapuche encaja perfecto. Monto AUD 30K-100K (~$25M-$80M CLP). "
+                "Ciclo abr-mar; es un PROCESO RELACIONAL — empezar contacto con la Embajada con anticipación."
+            ),
+            "url": "https://www.international.gc.ca/world-monde/funding-financement/cfli-fcil/index.aspx?lang=eng",
+            "tiempo": "Email inicial inmediato + reunión",
+            "responsable": "Claudia Vivallo",
+        },
+        {
+            "prio": "🟠 ALTA",
+            "titulo": "Postular Caja La Araucana - STEM",
+            "porque": (
+                "$5M Caja La Araucana + $3M aliado tecnológico = **$8M para colegios alto IVE rurales**. "
+                "HAK tiene ya 3 colegios en Araucanía rural (Rengalil, Trencito, Sta Cruz Loncoche/Victoria) "
+                "que califican alto IVE. Postulación anual."
+            ),
+            "url": "https://educacion.beneficioslaaraucana.cl/",
+            "tiempo": "1 semana (alianza con tecnológico + propuesta)",
+            "responsable": "Camila Garay",
+        },
+        {
+            "prio": "🟠 ALTA",
+            "titulo": "Postular Fondo Social CMPC (agosto-septiembre)",
+            "porque": (
+                "Fondo regional CMPC cubre Araucanía explícitamente. Hasta **$1.2M CLP por proyecto**. "
+                "Cierre típico septiembre-octubre. Para proyectos territoriales en comunas con presencia forestal. "
+                "HAK con su red de colegios rurales puede armar 3-4 propuestas paralelas."
+            ),
+            "url": "https://www.fundacioncmpc.cl/",
+            "tiempo": "Calendarizar para septiembre",
+            "responsable": "Camila Garay",
+        },
+        {
+            "prio": "🟠 ALTA",
+            "titulo": "Buscar ONGD española para AECID + La Caixa",
+            "porque": (
+                "AECID y La Caixa requieren que el solicitante sea una ONG española; HAK puede ser SOCIO LOCAL. "
+                "Hay ONGD españolas con foco educación intercultural Chile-LATAM (Entreculturas, Educo, Save the Children España). "
+                "Una alianza con ONGD española desbloquea EUR 50K (La Caixa) + hasta EUR 300K (AECID convenios)."
+            ),
+            "url": "https://www.aecid.es/w/la-aecid-publica-el-calendario-de-convocatorias-de-subvenciones-para-2026",
+            "tiempo": "1 mes (búsqueda + LOI conjunto)",
+            "responsable": "Claudia Vivallo (relacionamiento)",
+        },
+        {
+            "prio": "🟠 ALTA",
+            "titulo": "Solicitar alianza Fundación SM Chile",
+            "porque": (
+                "Fundación SM España tiene **oficina en Chile**. Programa formación docente + investigación educativa. "
+                "Acuerdos directos con ONG (no concurso público). Reunión inicial puede llevar a co-financiar formación HAK."
+            ),
+            "url": "https://cl.fundacion-sm.org/",
+            "tiempo": "Reunión inicial 1 semana",
+            "responsable": "Claudia Vivallo",
+        },
+        {
+            "prio": "🟠 ALTA",
+            "titulo": "Inscribirse como aliado implementador ProFuturo",
+            "porque": (
+                "ProFuturo (Fundación Telefónica + La Caixa) busca aliados locales para implementar Aula Digital "
+                "en escuelas vulnerables. HAK con su red de 16 establecimientos es candidato ideal. "
+                "No es concurso, es relacionamiento + propuesta."
+            ),
+            "url": "https://profuturo.education/paises/chile/",
+            "tiempo": "Email inicial + reunión",
+            "responsable": "Claudia Vivallo",
+        },
+
+        # ───────── MEDIA (estructural en el año) ─────────
+        {
+            "prio": "🟡 MEDIA",
+            "titulo": "Acreditación OTEC SENCE (NCh 2728:2015)",
+            "porque": (
+                "Habilita acceso al **mercado SENCE** (becas laborales, franquicia tributaria empresarial). "
+                "Empresas con planilla pueden capacitar a sus trabajadores con HAK y descontar el costo de impuestos. "
+                "Mercado adicional ~$300M CLP/año potencial. Inversión: 6 meses + ~$2M CLP."
+            ),
+            "url": "https://www.sence.gob.cl/organismos/otec",
+            "tiempo": "6 meses (segundo semestre 2026 según equipo HAK)",
+            "responsable": "Camila Garay (lead)",
+        },
+        {
+            "prio": "🟡 MEDIA",
+            "titulo": "Verificar/renovar Registro ATE MINEDUC",
+            "porque": (
+                "ATE = Asistencia Técnica Educativa. Es prerequisito para que escuelas usen recursos SEP/PME en HAK. "
+                "Verificar vigencia en registroycertificacionate.mineduc.cl al inicio de cada postulación."
+            ),
+            "url": "https://registroycertificacionate.mineduc.cl/",
+            "tiempo": "1 día (verificación)",
+            "responsable": "Camila Garay",
+        },
+        {
+            "prio": "🟡 MEDIA",
+            "titulo": "Avanzar primer curso certificado CPEIP (Decreto 401)",
+            "porque": (
+                "CPEIP certifica cursos de perfeccionamiento docente. Cursos certificados CPEIP entran al "
+                "Registro Público y son financiables con SEP/PME automáticamente. HAK tiene cursos en preparación; "
+                "sacar el primero abre canal continuo de demanda."
+            ),
+            "url": "https://www.cpeip.cl/registro-publico-y-acreditacion-de-cursos-y-postitulos-cpeip/",
+            "tiempo": "3-6 meses",
+            "responsable": "Camila Garay",
+        },
+        {
+            "prio": "🟡 MEDIA",
+            "titulo": "Estados financieros auditados anuales",
+            "porque": (
+                "Requisito de muchos donantes internacionales (Tinker, IAF, Fundación La Caixa) y "
+                "buena práctica de transparencia. Costo aprox $1.5M-$3M CLP/año por auditor externo. "
+                "Una vez se tiene 1 año auditado, se puede postular a fondos que antes estaban bloqueados."
+            ),
+            "url": "https://www.colegiocontadores.cl/buscar-contador",
+            "tiempo": "Contratar auditor en mayo-junio para auditoría 2025",
+            "responsable": "Dirección Ejecutiva",
+        },
+        {
+            "prio": "🟡 MEDIA",
+            "titulo": "Política de Protección a la Infancia (Child Safeguarding Policy)",
+            "porque": (
+                "Requisito de TODOS los donantes internacionales con foco infancia (Tinker, IAF, UNICEF, "
+                "Save the Children, Plan International, World Vision). Documento formal aprobado por directorio "
+                "que define protocolos ante denuncias, medidas preventivas, capacitación staff. "
+                "Sin esto, varios fondos están bloqueados aunque HAK califique en lo demás."
+            ),
+            "url": "https://www.unicef.org/protection/child-safeguarding",
+            "tiempo": "1 mes (redacción + aprobación directorio)",
+            "responsable": "Dirección Ejecutiva + asesor legal",
+        },
+        {
+            "prio": "🟡 MEDIA",
+            "titulo": "Memoria anual pública (transparencia)",
+            "porque": (
+                "Documento institucional de 20-30 páginas con: misión/visión, equipo, proyectos del año, métricas "
+                "de impacto, estados financieros resumidos. Publicada en sitio web + entregable a donantes. "
+                "Estándar de fundaciones LATAM consolidadas (Educacional Arauco, Mustakis, etc.). Mejora la "
+                "credibilidad ante todos los donantes."
+            ),
+            "url": "https://fundacionarauco.cl/memorias/",
+            "tiempo": "2 meses (recopilación + diseño)",
+            "responsable": "Coord. Extensión + diseño externo",
+        },
+        {
+            "prio": "🟡 MEDIA",
+            "titulo": "Newsletter / lista de email seguidores",
+            "porque": (
+                "Captura de leads para futuras campañas de captación + transparencia de impacto. "
+                "Mailchimp tier gratuito hasta 500 contactos. Envíos mensuales con: postulaciones ganadas, "
+                "actividades en escuelas, oportunidades de voluntariado. Construye base de futuros donantes."
+            ),
+            "url": "https://mailchimp.com/",
+            "tiempo": "1 semana setup + flujo continuo",
+            "responsable": "Coord. Extensión",
+        },
+        {
+            "prio": "🟡 MEDIA",
+            "titulo": "Política de transparencia + sitio web actualizado",
+            "porque": (
+                "Sitio web actual: https://fundacionhelenadamskeller.com/ — propuestas de mejora identificadas "
+                "en sesión previa (ver Propuesta_Mejoras_Web_HAK.docx). Agregar: transparencia financiera, "
+                "memoria anual, equipo con CVs, proyectos con resultados, botón DONAR (DonarOnline integrado), "
+                "FAQ donantes."
+            ),
+            "url": "https://fundacionhelenadamskeller.com/",
+            "tiempo": "1-2 meses",
+            "responsable": "Coord. Extensión + diseño web",
+        },
+        {
+            "prio": "🟡 MEDIA",
+            "titulo": "Postular FPA Establecimientos Educacionales (cierre 7 octubre)",
+            "porque": (
+                "Fondo Protección Ambiental MMA — línea Establecimientos Educacionales. **$6M CLP por proyecto**. "
+                "HAK con red de colegios puede armar 2-3 propuestas. Para educación ambiental escolar (huerto, "
+                "compostaje, energía solar, etc.). Cierra octubre — calendarizar postulación en septiembre."
+            ),
+            "url": "https://fondos.mma.gob.cl/fpa-2026-proyectos-sustentables-en-establecimientos-educacionales/",
+            "tiempo": "Calendarizar agosto-septiembre",
+            "responsable": "Camila Garay",
+        },
+        {
+            "prio": "🟡 MEDIA",
+            "titulo": "Contactar Microproyectos Embajada Alemania",
+            "porque": (
+                "EUR 25K (~$25M CLP) por microproyecto. Resultados verificables, ejecución en mismo año. "
+                "Embajada Alemania prioriza ODS 4 (educación), ODS 5 (género), ODS 16 (paz/justicia). "
+                "Contacto inicial a sección Cooperación de la Embajada."
+            ),
+            "url": "https://santiago.diplo.de/cl-es",
+            "tiempo": "Email inicial + propuesta 2 semanas",
+            "responsable": "Claudia Vivallo",
+        },
+    ]
+
+    # Render por prioridad
+    for prio_grupo in ["🔴 CRÍTICA", "🟠 ALTA", "🟡 MEDIA"]:
+        st.markdown(f"## {prio_grupo}")
+        items = [a for a in ACCIONES if a["prio"] == prio_grupo]
+        for a in items:
+            with st.expander(f"**{a['titulo']}** — ⏱ {a['tiempo']}", expanded=(prio_grupo == "🔴 CRÍTICA")):
+                st.markdown(a["porque"])
+                col1, col2 = st.columns([3, 2])
+                col1.markdown(f"🔗 **[Ir al sitio]({a['url']})**")
+                col2.markdown(f"👤 **Responsable**: {a['responsable']}")
+        st.divider()
+
+    # Recordatorio de configuración pendiente
+    st.markdown("## ⚙️ Configuración pendiente del sistema (técnico)")
+    with st.expander("📧 Activar envío automático de email diario"):
+        st.markdown("""
+        El sistema **YA detecta y envía Telegram** al grupo "A y Hak" 3 veces al día,
+        pero el envío de **email a `gestion@fundacionhak.com`** está pendiente.
+
+        **Lo que falta**:
+        1. Generar **App Password de Gmail** (16 caracteres) desde la cuenta que enviará:
+           - Activar 2FA en https://myaccount.google.com/security
+           - Crear App Password en https://myaccount.google.com/apppasswords
+        2. Configurar 2 secrets en GitHub Actions del repo `hak-scanner`:
+           - `EMAIL_USER` = email del remitente (ej: `geoimagen.spa@gmail.com`)
+           - `EMAIL_PASSWORD` = los 16 caracteres del App Password
+        3. Confirmar con Nicolás para subir los secrets vía API.
+
+        Una vez configurado, el equipo HAK recibirá **3 emails diarios** (08:00, 13:00, 18:00 Chile)
+        con el reporte completo de oportunidades nuevas + TOP 5.
+        """)
+
+    with st.expander("🔐 Token GitHub para guardar revisiones"):
+        st.markdown("""
+        Las revisiones (✅ Sirve / ⏳ En proceso / 📨 Postulada / ❌ No sirve) que hacen
+        en la pestaña Oportunidades MP **se guardan en GitHub** para que todos los del equipo las vean.
+
+        Para activar el guardado, falta agregar un secret `github_token` en
+        Streamlit Cloud → Settings → Secrets:
+        ```toml
+        github_token = "ghp_xxxxxxxxxxxxxxxxxxxx"
+        ```
+        Sin esto, las marcaciones del equipo se pierden al refrescar la página.
+        """)
 
 
 st.divider()
