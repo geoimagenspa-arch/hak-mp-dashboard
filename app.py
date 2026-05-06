@@ -177,8 +177,28 @@ check_password()
 st.markdown("""
 <style>
 [data-testid="stMetric"] {
-    background: #f8fafc; padding: 12px; border-radius: 8px;
-    border-left: 4px solid #1F4E78;
+    background: #f8fafc; padding: 6px 10px; border-radius: 6px;
+    border-left: 3px solid #1F4E78;
+}
+[data-testid="stMetricLabel"] p {
+    font-size: 0.78rem !important;
+    color: #475569 !important;
+}
+[data-testid="stMetricValue"] {
+    font-size: 1.35rem !important;
+    line-height: 1.4 !important;
+    font-weight: 600 !important;
+}
+[data-testid="stMetricDelta"] {
+    font-size: 0.75rem !important;
+}
+h1 {
+    font-size: 1.6rem !important;
+    margin-bottom: 0.3rem !important;
+    padding-top: 0 !important;
+}
+.block-container {
+    padding-top: 1.5rem !important;
 }
 .estado-abierto { background:#16a34a; color:white; padding:2px 8px; border-radius:12px; font-size:0.85em; font-weight:bold; }
 .estado-proximo { background:#d97706; color:white; padding:2px 8px; border-radius:12px; font-size:0.85em; font-weight:bold; }
