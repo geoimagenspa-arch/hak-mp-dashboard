@@ -316,6 +316,10 @@ with st.sidebar:
     st.caption("ℹ️ Las marcadas como ❌ No sirve se ocultan automáticamente. "
                "Las 📨 Postuladas siguen visibles aunque la licitación cierre.")
 
+    st.divider()
+    solo_nuevas_hoy = st.checkbox("⭐ Solo NUEVAS hoy", value=False,
+                                   help="Filtra licitaciones publicadas hoy y fondos creados hoy en la DB")
+
 # ─── Header ──────────────────────────────────────────────────────────────────
 st.title("🎓 Inteligencia de Mercado · Fundación HAK")
 if op.empty and comp.empty and fondos.empty:
@@ -346,6 +350,12 @@ if not op.empty:
                 "no_sirve": "❌ No sirve"}.get(e, "No revisadas")
     if estados_filtro:
         op_f = op_f[op_f["codigo"].apply(_estado_filt).isin(estados_filtro)]
+
+    # Filtro "Solo nuevas hoy" (publicadas hoy)
+    if solo_nuevas_hoy and "fecha_publicacion" in op_f.columns:
+        hoy = pd.Timestamp.now().normalize()
+        _fp = pd.to_datetime(op_f["fecha_publicacion"], errors="coerce")
+        op_f = op_f[_fp >= hoy]
 
 # ─── Métricas ────────────────────────────────────────────────────────────────
 c1, c2, c3, c4, c5, c6 = st.columns(6)
@@ -818,6 +828,11 @@ with tabs[2]:
             f_show = f_show[f_show["estado"].isin(estado_f)]
         if tipo_f:
             f_show = f_show[f_show["tipo"].isin(tipo_f)]
+        # Filtro "Solo nuevas hoy" (created_at en el día actual)
+        if solo_nuevas_hoy and "created_at" in f_show.columns:
+            hoy = pd.Timestamp.now().normalize()
+            _ca = pd.to_datetime(f_show["created_at"], errors="coerce")
+            f_show = f_show[_ca >= hoy]
         f_show = f_show.sort_values("score_hak", ascending=False)
 
         st.markdown(f"**{len(f_show)} fondos** con los filtros actuales")
