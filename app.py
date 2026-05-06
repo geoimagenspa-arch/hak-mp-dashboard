@@ -225,6 +225,13 @@ def load_data():
 op, comp, fondos, meta = load_data()
 revisiones = cargar_revisiones() if False else {}  # placeholder, real load más abajo
 
+# Convertir fechas a datetime para que DatetimeColumn las renderice
+if not op.empty:
+    if "fecha_publicacion" in op.columns:
+        op["fecha_publicacion"] = pd.to_datetime(op["fecha_publicacion"], errors="coerce")
+    if "fecha_cierre" in op.columns:
+        op["fecha_cierre"] = pd.to_datetime(op["fecha_cierre"], errors="coerce")
+
 
 def recalc_urgencia(fc):
     """Recalcula urgencia desde fecha_cierre + ahora."""
@@ -358,14 +365,14 @@ st.divider()
 tabs = st.tabs([
     "🎯 Oportunidades MP",
     "📨 Seguimiento Postulaciones",
+    "💰 Fondos Concursables",
+    "📋 Acciones Pendientes HAK",
     "🥊 Competencia 365d",
     "🔁 Cross-Reference",
     "📈 Evolución",
     "🔍 HAK vs Mercado",
     "🏛 Organismos",
     "📍 Geografía",
-    "💰 Fondos Concursables",
-    "📋 Acciones Pendientes HAK",
 ])
 
 
@@ -381,9 +388,17 @@ with tabs[0]:
                     "no_sirve": "❌"}.get(r.get("estado"), "")
         op_view = op_f.copy()
         op_view["✓"] = op_view["codigo"].apply(_est_emoji)
+        # Etiqueta visible Urgencia (texto descriptivo con emoji + color)
+        URG_LABEL = {
+            "CRITICA": "🟥 Crítica <24h",
+            "URGENTE": "🟧 Urgente <48h",
+            "PRONTA":  "🟨 Pronta <7d",
+            "NORMAL":  "⬜ Normal",
+        }
+        op_view["Urg"] = op_view["urgencia"].map(URG_LABEL).fillna("⬜ Normal")
 
-        # Licitación en posición 3 · sin "urg" visible (color de fila lo reemplaza)
-        cols = ["✓", "score", "nombre", "priority",
+        # Licitación en posición 3 · Urg visible (texto + color en fila)
+        cols = ["✓", "score", "nombre", "priority", "Urg",
                 "fecha_publicacion", "fecha_cierre",
                 "organismo", "region", "monto",
                 "cliente_previo", "organismo_prioritario",
@@ -404,9 +419,24 @@ with tabs[0]:
         cd.metric("✅ Sirven", int(n_sirve))
         ce.metric("📨 Postuladas", int(n_postuladas))
 
-        st.caption("🟥 Crítica (<24h) · 🟧 Urgente (<48h) · 🟨 Pronta (<7d) · ⬜ Normal · "
-                   "Click 🔗 MP para abrir la ficha directa. "
-                   "Las cerradas se ocultan salvo Postuladas (seguimiento).")
+        with st.expander("ℹ️ Cómo leer esta tabla — colores y significado", expanded=False):
+            st.markdown("""
+**Colores de fila** (urgencia según fecha de cierre — pasa el mouse sobre la columna **Urg** para detalle):
+
+- 🟥 **Rojo claro** = Crítica (cierra en menos de **24 horas**) — postula AHORA
+- 🟧 **Naranja claro** = Urgente (cierra en menos de **48 horas**) — postula HOY
+- 🟨 **Amarillo claro** = Pronta (cierra en menos de **7 días**) — preparar postulación
+- ⬜ **Sin color** = Normal (más de 7 días para cerrar)
+
+**Otras columnas con tooltip** (pasa el mouse sobre el header):
+- **Score**: puntaje de relevancia HAK (a más alto, mejor encaje con tu giro)
+- **Prio**: ALTA si matchea ≥1 keyword importante
+- **🏆**: cliente previo HAK (Temuco, Cerrillos, Cunco, Villarrica)
+- **🎯**: organismo prioritario (SLEPs, MINEDUC, JUNJI, GORE, municipios HAK)
+
+**Acciones**: Click `🔗 MP` para abrir la ficha directa en Mercado Público.
+Las licitaciones cerradas se ocultan automáticamente, salvo las marcadas como **📨 Postulada** (para seguimiento).
+            """)
 
         # Color de fila según urgencia
         URG_COLORS = {"CRITICA": "#fee2e2", "URGENTE": "#ffedd5", "PRONTA": "#fef9c3"}
@@ -433,6 +463,8 @@ with tabs[0]:
                 "nombre": "Licitación",
                 "priority": st.column_config.TextColumn("Prio", width="small",
                     help="ALTA si matchea ≥1 keyword de alta prioridad"),
+                "Urg": st.column_config.TextColumn("Urg", width="small",
+                    help="🟥 Crítica = cierra <24h · 🟧 Urgente <48h · 🟨 Pronta <7d · ⬜ Normal >7d. El color de la fila refleja la urgencia."),
                 "fecha_publicacion": st.column_config.DatetimeColumn(
                     "Publicada", format="DD/MM/YYYY",
                     help="Fecha en que el organismo publicó la licitación"),
@@ -553,7 +585,7 @@ with tabs[1]:
 
 
 # ─── TAB 3: Competencia 365d ─────────────────────────────────────────────────
-with tabs[2]:
+with tabs[4]:
     if comp.empty:
         st.info("No hay datos de competencia.")
     else:
@@ -582,7 +614,7 @@ with tabs[2]:
 
 
 # ─── TAB 4: Cross-Reference ──────────────────────────────────────────────────
-with tabs[3]:
+with tabs[5]:
     st.markdown("### Para cada oportunidad activa, ¿quién ganó licitaciones similares en este organismo?")
     if op.empty or comp.empty:
         st.info("Necesita datos de oportunidades + competencia.")
@@ -628,7 +660,7 @@ with tabs[3]:
 
 
 # ─── TAB 5: Evolución ────────────────────────────────────────────────────────
-with tabs[4]:
+with tabs[6]:
     st.markdown("### Distribución y trends del mercado")
     if op.empty:
         st.info("Sin datos.")
@@ -665,7 +697,7 @@ with tabs[4]:
 
 
 # ─── TAB 6: HAK vs Mercado ───────────────────────────────────────────────────
-with tabs[5]:
+with tabs[7]:
     st.markdown("### 🎓 Posición de Fundación HAK en el mercado")
     if comp.empty:
         st.info("Sin datos de competencia.")
@@ -700,7 +732,7 @@ with tabs[5]:
 
 
 # ─── TAB 7: Organismos ───────────────────────────────────────────────────────
-with tabs[6]:
+with tabs[8]:
     if op.empty:
         st.info("Sin datos.")
     else:
@@ -719,7 +751,7 @@ with tabs[6]:
 
 
 # ─── TAB 8: Geografía ────────────────────────────────────────────────────────
-with tabs[7]:
+with tabs[9]:
     if op.empty:
         st.info("Sin datos.")
     else:
@@ -743,7 +775,7 @@ with tabs[7]:
 
 
 # ─── TAB 9: Fondos Concursables ──────────────────────────────────────────────
-with tabs[8]:
+with tabs[2]:
     st.markdown("### 💰 Fondos Concursables relevantes para HAK")
     st.caption("FONDART, ANID, FNDR, FOSIS, MINEDUC, BID, OEI, etc. — filtrado por score_hak > 0")
 
@@ -835,7 +867,7 @@ with tabs[8]:
 
 
 # ─── TAB 10: Acciones Pendientes HAK (independientes del sistema) ────────────
-with tabs[9]:
+with tabs[3]:
     st.markdown("# 📋 Acciones Pendientes — HAK")
     st.markdown("Estas son acciones que el equipo HAK debe ejecutar **fuera del sistema** "
                 "para desbloquear nuevas fuentes de financiamiento, mejorar competitividad "
