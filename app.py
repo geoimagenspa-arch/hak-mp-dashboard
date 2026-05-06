@@ -337,7 +337,7 @@ st.divider()
 
 tabs = st.tabs([
     "🎯 Oportunidades MP",
-    "🏆 TOP del día",
+    "📨 Seguimiento Postulaciones",
     "🥊 Competencia 365d",
     "🔁 Cross-Reference",
     "📈 Evolución",
@@ -369,8 +369,23 @@ with tabs[0]:
                 "matched_high", "codigo", "url"]
         cols = [c for c in cols if c in op_view.columns]
 
+        # Contador con desglose por estado
+        n_total = len(op_view)
+        n_postuladas = (op_view["codigo"].apply(_estado_codigo) == "postulada").sum()
+        n_proceso = (op_view["codigo"].apply(_estado_codigo) == "en_proceso").sum()
+        n_sirve = (op_view["codigo"].apply(_estado_codigo) == "sirve").sum()
+        n_norevisadas = n_total - n_postuladas - n_proceso - n_sirve
+
+        ca, cb, cc, cd, ce = st.columns(5)
+        ca.metric("📋 Total visible", n_total)
+        cb.metric("🆕 Sin revisar", int(n_norevisadas))
+        cc.metric("⏳ En proceso", int(n_proceso))
+        cd.metric("✅ Sirven", int(n_sirve))
+        ce.metric("📨 Postuladas", int(n_postuladas))
+
         st.caption("🟥 Crítica (<24h) · 🟧 Urgente (<48h) · 🟨 Pronta (<7d) · ⬜ Normal · "
-                   "Click 🔗 MP para abrir la ficha directa.")
+                   "Click 🔗 MP para abrir la ficha directa. "
+                   "Las cerradas se ocultan salvo Postuladas (seguimiento).")
 
         # Color de fila según urgencia
         URG_COLORS = {"CRITICA": "#fee2e2", "URGENTE": "#ffedd5", "PRONTA": "#fef9c3"}
@@ -387,7 +402,7 @@ with tabs[0]:
 
         st.dataframe(
             styled,
-            use_container_width=True, height=420,
+            use_container_width=True, height=720,  # ~20 filas visibles
             column_config={
                 "✓": st.column_config.TextColumn(
                     "✓", width="small",
@@ -434,46 +449,85 @@ with tabs[0]:
             render_revision_widget(str(codigo_sel), revisiones, key_prefix="t1")
 
 
-# ─── TAB 2: TOP del día ──────────────────────────────────────────────────────
+# ─── TAB 2: Seguimiento Postulaciones ────────────────────────────────────────
 with tabs[1]:
-    if op_f.empty:
-        st.info("Sin oportunidades para el TOP.")
+    st.markdown("### 📨 Postulaciones en seguimiento")
+    st.caption("Solo licitaciones marcadas como ✅ Sirve · ⏳ En proceso · 📨 Postulada. "
+               "Las Postuladas aparecen aquí aunque la licitación haya cerrado, para hacer seguimiento del fallo.")
+
+    # Construir desde revisiones + datos del CSV original (no op_f filtrado)
+    seguimiento_codigos = {c: rev for c, rev in revisiones.items()
+                           if rev.get("estado") in ("sirve", "en_proceso", "postulada")}
+    if not seguimiento_codigos:
+        st.info("Aún no hay licitaciones marcadas. Marca alguna como ✅ Sirve / ⏳ En proceso / 📨 Postulada en la pestaña anterior.")
     else:
-        for _, r in op_f.head(10).iterrows():
+        # Recuperar info de cada código del CSV (puede estar cerrada)
+        # Nota: op original ya tiene filtro fecha_cierre, hay que cargar SIN ese filtro
+        op_all_path = DATA / "oportunidades.csv"
+        try:
+            op_all = pd.read_csv(op_all_path)
+        except Exception:
+            op_all = pd.DataFrame()
+
+        rows_seg = []
+        for codigo, rev in seguimiento_codigos.items():
+            if not op_all.empty:
+                match = op_all[op_all["codigo"].astype(str) == str(codigo)]
+                if not match.empty:
+                    r = match.iloc[0].to_dict()
+                else:
+                    r = {"codigo": codigo}
+            else:
+                r = {"codigo": codigo}
+            r["_estado"] = rev.get("estado")
+            r["_revisor"] = rev.get("revisor", "")
+            r["_comentario"] = rev.get("comentario", "")
+            r["_fecha_rev"] = rev.get("fecha", "")
+            rows_seg.append(r)
+
+        # Métricas top
+        n_sir = sum(1 for r in rows_seg if r["_estado"] == "sirve")
+        n_pro = sum(1 for r in rows_seg if r["_estado"] == "en_proceso")
+        n_pos = sum(1 for r in rows_seg if r["_estado"] == "postulada")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("✅ Sirven", n_sir)
+        c2.metric("⏳ En proceso", n_pro)
+        c3.metric("📨 Postuladas", n_pos)
+        st.divider()
+
+        # Orden: postuladas primero, después en proceso, después sirve
+        prio = {"postulada": 0, "en_proceso": 1, "sirve": 2}
+        rows_seg.sort(key=lambda r: (prio.get(r["_estado"], 9), str(r.get("fecha_cierre") or "9999")))
+
+        for r in rows_seg:
             codigo = str(r.get("codigo", ""))
-            rev = revisiones.get(codigo, {})
+            estado = r["_estado"]
+            est_label, est_color = ESTADOS.get(estado, ("?", "#6b7280"))
+
             with st.container(border=True):
                 col_a, col_b = st.columns([4, 1])
                 with col_a:
-                    badges = []
-                    if rev:
-                        nom, _ = ESTADOS.get(rev["estado"], ("?", "#6b7280"))
-                        badges.append(nom)
-                    if r.get("cliente_previo"):
-                        badges.append("🏆 CLIENTE PREVIO")
-                    if r.get("organismo_prioritario"):
-                        badges.append("🎯 ORG PRIORITARIO")
-                    if pd.notna(r.get("oportunidad_estructural")) and r.get("oportunidad_estructural"):
-                        badges.append(f"⚡ {r['oportunidad_estructural'][:30]}")
-                    badge_str = " · ".join(badges)
-                    st.markdown(f"### {r['nombre']}")
+                    st.markdown(
+                        f"<span style='background:{est_color}; color:white; padding:3px 10px; "
+                        f"border-radius:12px; font-size:0.85em; font-weight:bold;'>{est_label}</span> "
+                        f"<b>{r.get('nombre','(sin nombre)')[:120]}</b>",
+                        unsafe_allow_html=True
+                    )
                     st.caption(f"📅 Publicada: **{fmt_fecha(r.get('fecha_publicacion'))}** · "
                                f"Cierra: **{fmt_fecha(r.get('fecha_cierre'))}**")
                     st.caption(f"🏛 **{r.get('organismo','—')}** · "
                                f"📍 {r.get('region','—')} · "
                                f"💰 ${(r.get('monto') or 0)/1e6:.1f}M CLP")
-                    if badge_str:
-                        st.markdown(f"`{badge_str}`")
-                    if pd.notna(r.get("matched_high")) and r.get("matched_high"):
-                        st.caption(f"🔑 {r['matched_high']}")
-                    if pd.notna(r.get("url")) and r.get("url"):
-                        st.markdown(f"🔗 [Buscar en Mercado Público]({r['url']}) · "
-                                    f"copia el código:")
-                        st.code(codigo, language=None)
+                    if r.get("_comentario"):
+                        st.markdown(f"💬 _{r['_comentario']}_")
+                    st.caption(f"👤 Revisor: **{r.get('_revisor','—')}** · "
+                               f"🕐 {fmt_fecha(r.get('_fecha_rev'))}")
+                    if r.get("url"):
+                        st.markdown(f"[🔗 Abrir en Mercado Público]({r['url']})")
                 with col_b:
-                    st.metric("Score", int(r.get("score", 0)))
-                    st.caption(f"{r.get('urgencia','')}")
-                # Widget de revisión
+                    if r.get("score") is not None and not pd.isna(r.get("score")):
+                        st.metric("Score", int(r["score"]))
+                # Permitir actualizar la revisión desde aquí
                 render_revision_widget(codigo, revisiones, key_prefix="t2")
 
 
@@ -701,37 +755,62 @@ with tabs[8]:
         f_show = f_show.sort_values("score_hak", ascending=False)
 
         st.markdown(f"**{len(f_show)} fondos** con los filtros actuales")
-        for _, r in f_show.head(20).iterrows():
-            with st.container(border=True):
-                col_a, col_b = st.columns([4, 1])
-                with col_a:
-                    intl = "🌍 " if r.get("internacional") else ""
-                    estado = r.get("estado", "desconocido")
-                    badge = {"abierto": "🟢 ABIERTO", "proximo": "🟡 PRÓXIMO",
-                             "cerrado": "🔴 CERRADO"}.get(estado, "⚪ DESC")
-                    st.markdown(f"### {intl}{r['nombre']}")
-                    st.caption(f"🏛 **{r.get('organismo','—')}** · "
-                               f"📁 {r.get('tipo','—')} · "
-                               f"{badge}"
-                               + (f" · 📍 {r['region']}" if pd.notna(r.get('region')) and r.get('region') else ""))
-                    if pd.notna(r.get("descripcion")) and r.get("descripcion"):
-                        st.markdown(f"<small>{str(r['descripcion'])[:300]}{'...' if len(str(r.get('descripcion','')))>300 else ''}</small>",
-                                    unsafe_allow_html=True)
-                    monto_str = ""
-                    if pd.notna(r.get("monto_min")) and r.get("monto_min"):
-                        monto_str = f"💰 desde ${r['monto_min']/1e6:.1f}M {r.get('moneda','')}"
-                        if pd.notna(r.get("monto_max")) and r.get("monto_max"):
-                            monto_str += f" hasta ${r['monto_max']/1e6:.1f}M"
-                        st.caption(monto_str)
-                    if pd.notna(r.get("fecha_cierre")) and r.get("fecha_cierre"):
-                        st.caption(f"📅 Cierre: {r['fecha_cierre']}")
-                    if pd.notna(r.get("url")) and r.get("url"):
-                        st.markdown(f"[🔗 Ver convocatoria]({r['url']})")
-                with col_b:
-                    st.metric("Score", int(r.get("score_hak", 0)))
+        st.caption("ℹ️ Muchos fondos provienen del catálogo manual y enlazan a la home del organismo "
+                   "(no a la convocatoria específica). Apertura/cierre frecuentemente no disponibles. "
+                   "Sprint dedicado a mejorar scrapers en curso.")
 
-        st.divider()
-        st.dataframe(f_show, use_container_width=True, height=400)
+        # Construir tabla con todos los campos visibles
+        def _f_url(u):
+            return u if pd.notna(u) and u else ""
+        def _f_text(v, fallback="ℹ️ Info no disponible"):
+            if pd.isna(v) or v == "" or v is None:
+                return fallback
+            return str(v)
+        def _f_monto(mn, mx, mon):
+            mon = mon if pd.notna(mon) and mon else "CLP"
+            if pd.isna(mn) and pd.isna(mx):
+                return "ℹ️ No disponible"
+            if pd.notna(mn) and pd.notna(mx):
+                return f"${mn/1e6:.1f}M – ${mx/1e6:.1f}M {mon}"
+            if pd.notna(mx):
+                return f"hasta ${mx/1e6:.1f}M {mon}"
+            return f"desde ${mn/1e6:.1f}M {mon}"
+        def _f_estado(e):
+            return {"abierto": "🟢 Abierto", "proximo": "🟡 Próximo",
+                    "cerrado": "🔴 Cerrado"}.get(e, "⚪ Desconocido")
+
+        tabla_view = pd.DataFrame([{
+            "Score": int(r.get("score_hak", 0)),
+            "🌍": "🌍" if r.get("internacional") else "",
+            "Estado": _f_estado(r.get("estado")),
+            "Fondo": _f_text(r.get("nombre")),
+            "Organismo": _f_text(r.get("organismo")),
+            "Tipo": _f_text(r.get("tipo")),
+            "Región": _f_text(r.get("region")),
+            "Monto": _f_monto(r.get("monto_min"), r.get("monto_max"), r.get("moneda")),
+            "Apertura": _f_text(r.get("fecha_apertura")),
+            "Cierre": _f_text(r.get("fecha_cierre")),
+            "URL": _f_url(r.get("url")),
+        } for _, r in f_show.iterrows()])
+
+        st.dataframe(
+            tabla_view, use_container_width=True, height=600,
+            column_config={
+                "Score": st.column_config.NumberColumn("Score", width="small"),
+                "🌍": st.column_config.TextColumn("🌍", width="small",
+                    help="Fondo internacional"),
+                "Estado": st.column_config.TextColumn("Estado", width="small"),
+                "Fondo": st.column_config.TextColumn("Fondo", width="medium"),
+                "Organismo": st.column_config.TextColumn("Organismo", width="medium"),
+                "Tipo": st.column_config.TextColumn("Tipo", width="small"),
+                "Región": st.column_config.TextColumn("Región"),
+                "Monto": st.column_config.TextColumn("Monto"),
+                "Apertura": st.column_config.TextColumn("Apertura", width="small"),
+                "Cierre": st.column_config.TextColumn("Cierre", width="small"),
+                "URL": st.column_config.LinkColumn("🔗 Ver", width="small",
+                    display_text="Abrir"),
+            }
+        )
 
 
 st.divider()
