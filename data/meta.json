@@ -1,9 +1,7 @@
 {
-  "ultima_actualizacion": "2026-06-18 23:36 UTC",
-  "scan_fecha": "20260618",
+  "ultima_actualizacion": "2026-06-19 14:34 UTC",
+  "scan_fecha": "20260619",
   "ranking_fecha": "",
   "fuente": "GitHub Actions (autonomous)",
-  "repo": "https://github.com/geoimagenspa-arch/hak-mp-dashboard",
-  "fondos_actualizacion": "2026-06-19 14:00 UTC",
-  "fondos_total": 153
+  "repo": "https://github.com/geoimagenspa-arch/hak-mp-dashboard"
 }
